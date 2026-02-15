@@ -6,5 +6,10 @@ data class MusicTrack(
     val id: Long,
     val title: String,
     val artist: String,
+    val album: String,
+    val albumId: Long,
+    val genre: String?,
     val contentUri: Uri
-)
+) {
+    val artworkUri: Uri get() = Uri.parse("content://media/external/audio/albumart/$albumId")
+}
