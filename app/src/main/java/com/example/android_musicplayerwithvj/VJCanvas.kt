@@ -77,38 +77,41 @@ fun VJCanvas(
         label = "FlowerZoom"
     )
 
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val density = LocalDensity.current
+        val widthPx = constraints.maxWidth.toFloat()
+        val heightPx = constraints.maxHeight.toFloat()
+        val maxDimPx = min(widthPx, heightPx)
         
-        // 1. Artwork (Bottom layer)
+        // Common base radius (70% scale)
+        val commonBaseR = (maxDimPx / 3.2f) * 0.7f
+
+        // 1. First, draw artwork (Bottom layer)
         if ((style == VJStyle.LIQUID || style == VJStyle.FLOWER) && artworkUri != null) {
             val artworkScale = if (style == VJStyle.FLOWER) animatedZoom else 1f
-            // Calculating sizes outside Canvas using Box constraints ratio
+            // artwork size matches commonBaseR exactly
+            val artworkSize = with(density) { (commonBaseR * 2.0f * artworkScale).toDp() } 
             AsyncImage(
                 model = artworkUri,
                 contentDescription = null,
                 modifier = Modifier
-                    .fillMaxSize(0.4375f * artworkScale) // Equivalent to 0.7 / 3.2 * 2.0
-                    .aspectRatio(1f)
+                    .size(artworkSize)
                     .clip(CircleShape),
                 contentScale = ContentScale.Crop
             )
         }
 
-        // 2. Canvas (Front layer)
+        // 2. Then, draw Canvas (Front layer)
         Canvas(modifier = Modifier.fillMaxSize()) {
             if (!isPlaying) return@Canvas
 
             val center = Offset(size.width / 2f, size.height / 2f)
-            val maxDimPx = size.minDimension
-            // Common base radius (70% scale)
-            val commonBaseR = (maxDimPx / 3.2f) * 0.7f
             val currentScale = if (style == VJStyle.FLOWER) animatedZoom else 1f
 
             scale(scale = currentScale, pivot = center) {
                 when (style) {
                     VJStyle.FLOWER -> {
-                        // FLOWER: Contracts inward with volume
+                        // FLOWER: Contracts inward with volume (Beat oriented)
                         val path = Path()
                         val points = 128
                         val radiusData = FloatArray(points)
@@ -117,20 +120,18 @@ fun VJCanvas(
                             val rawAmp = (waveData.getOrElse(waveIdx) { 0 }.toFloat() / 128f)
                             val normalizedAmp = (rawAmp / max(0.15f, trackPeakAll)).coerceIn(-1f, 1f)
                             
-                            val contract = (112f * 0.7f) * atan(2.0 * abs(normalizedAmp.toDouble()) + 0.002).toFloat()
+                            val contract = 112f * 0.7f * atan(2.0f * (abs(normalizedAmp) + 0.002f))
                             radiusData[i] = (commonBaseR + 80f * 0.7f) - contract
                         }
                         for (i in 0 until points) {
                             val angle1 = (i.toFloat() / points) * 2.0 * PI
                             val angle2 = ((i + 1).toFloat() / points) * 2.0 * PI
                             val midAngle = (angle1 + angle2) / 2.0
-                            val r1 = radiusData[i]; val r2 = radiusData[(i + 1) % points]
+                            val r1 = radiusData[i]
+                            val r2 = radiusData[(i + 1) % points]
                             
-                            val x1 = center.x + r1 * cos(angle1).toFloat()
-                            val y1 = center.y + r1 * sin(angle1).toFloat()
-                            val xMid = center.x + ((r1 + r2) / 2.0f) * cos(midAngle).toFloat()
-                            val yMid = center.y + ((r1 + r2) / 2.0f) * sin(midAngle).toFloat()
-                            
+                            val x1 = (center.x + r1 * cos(angle1)).toFloat(); val y1 = (center.y + r1 * sin(angle1)).toFloat()
+                            val xMid = (center.x + (r1 + r2) / 2.0 * cos(midAngle)).toFloat(); val yMid = (center.y + (r1 + r2) / 2.0 * sin(midAngle)).toFloat()
                             if (i == 0) path.moveTo(x1, y1)
                             path.quadraticBezierTo(x1, y1, xMid, yMid)
                         }
@@ -148,7 +149,7 @@ fun VJCanvas(
                         drawCircle(if (colorMode == VJColorMode.COLORFUL) Color.Magenta else singleColor, radius = commonBaseR, style = Stroke(width = 2f))
                     }
                     VJStyle.LIQUID -> {
-                        // LIQUID: Expands outward with volume
+                        // LIQUID: Expands outward with volume (Melody oriented)
                         val path = Path()
                         val points = 128
                         val radiusData = FloatArray(points)
@@ -159,20 +160,18 @@ fun VJCanvas(
                             val gate = 0.25f
                             val cleanedAmp = if (abs(normalizedAmp) < gate) 0f else (normalizedAmp - sign(normalizedAmp) * gate)
                             
-                            val dynamicRadius = (260f * 0.7f) * atan(1.8 * abs(cleanedAmp.toDouble()) + 0.005).toFloat()
+                            val dynamicRadius = 260f * 0.7f * atan(1.8f * (abs(cleanedAmp) + 0.005f))
                             radiusData[i] = (commonBaseR * 0.98f) + dynamicRadius
                         }
                         for (i in 0 until points) {
                             val angle1 = (i.toFloat() / points) * 2.0 * PI
                             val angle2 = ((i + 1).toFloat() / points) * 2.0 * PI
                             val midAngle = (angle1 + angle2) / 2.0
-                            val r1 = radiusData[i]; val r2 = radiusData[(i + 1) % points]
+                            val r1 = radiusData[i]
+                            val r2 = radiusData[(i + 1) % points]
                             
-                            val x1 = center.x + r1 * cos(angle1).toFloat()
-                            val y1 = center.y + r1 * sin(angle1).toFloat()
-                            val xMid = center.x + ((r1 + r2) / 2.0f) * cos(midAngle).toFloat()
-                            val yMid = center.y + ((r1 + r2) / 2.0f) * sin(midAngle).toFloat()
-                            
+                            val x1 = (center.x + r1 * cos(angle1)).toFloat(); val y1 = (center.y + r1 * sin(angle1)).toFloat()
+                            val xMid = (center.x + (r1 + r2) / 2.0 * cos(midAngle)).toFloat(); val yMid = (center.y + (r1 + r2) / 2.0 * sin(midAngle)).toFloat()
                             if (i == 0) path.moveTo(x1, y1)
                             path.quadraticBezierTo(x1, y1, xMid, yMid)
                         }
@@ -229,8 +228,7 @@ fun VJCanvas(
                             for (i in 0 until 64) {
                                 val angle = (i.toFloat() / 64f) * 2.0 * PI
                                 val r = (size.minDimension / 5f) + (fftData.getOrElse(i) { 0f } * 180f)
-                                val x = center.x + (r * cos(angle)).toFloat()
-                                val y = center.y + (r * sin(angle)).toFloat()
+                                val x = center.x + (r * cos(angle)).toFloat(); val y = (center.y + (r * sin(angle)).toFloat())
                                 if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
                             }
                             path.close()

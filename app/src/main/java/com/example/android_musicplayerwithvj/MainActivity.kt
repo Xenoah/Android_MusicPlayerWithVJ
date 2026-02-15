@@ -29,8 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.util.UnstableApi
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.android_musicplayerwithvj.ui.theme.Android_MusicPlayerWithVJTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -114,6 +115,7 @@ fun PermissionRequestScreen(onRequestPermission: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MusicPlayerScreen(viewModel: MusicViewModel) {
+    val context = LocalContext.current
     val tracks by viewModel.tracks.collectAsState()
     val categoryItems by viewModel.categoryItems.collectAsState()
     val selectedItem by viewModel.selectedItem.collectAsState()
@@ -255,7 +257,10 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                 when (backgroundMode) {
                     BackgroundMode.ALBUM_ART -> {
                         AsyncImage(
-                            model = currentTrack?.artworkUri,
+                            model = ImageRequest.Builder(context)
+                                .data(currentTrack?.artworkUri)
+                                .crossfade(true)
+                                .build(),
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize().alpha(backgroundOpacity),
                             contentScale = ContentScale.Crop
@@ -297,7 +302,10 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                         modifier = Modifier.padding(horizontal = 16.dp)
                     ) {
                         AsyncImage(
-                            model = currentTrack?.artworkUri,
+                            model = ImageRequest.Builder(context)
+                                .data(currentTrack?.artworkUri)
+                                .crossfade(true)
+                                .build(),
                             contentDescription = null,
                             modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)),
                             contentScale = ContentScale.Crop
@@ -455,12 +463,16 @@ fun VJSkinItem(style: VJStyle, isSelected: Boolean, activeColor: Color, onClick:
 
 @Composable
 fun TrackItem(track: MusicTrack, isSelected: Boolean, activeColor: Color, onClick: () -> Unit) {
+    val context = LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp).background(if (isSelected) activeColor.copy(alpha = 0.2f) else Color.Transparent),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AsyncImage(
-            model = track.artworkUri,
+            model = ImageRequest.Builder(context)
+                .data(track.artworkUri)
+                .crossfade(true)
+                .build(),
             contentDescription = null,
             modifier = Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)),
             contentScale = ContentScale.Crop
