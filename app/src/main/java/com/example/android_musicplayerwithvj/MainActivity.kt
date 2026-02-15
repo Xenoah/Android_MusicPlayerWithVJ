@@ -255,7 +255,7 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                 when (backgroundMode) {
                     BackgroundMode.ALBUM_ART -> {
                         AsyncImage(
-                            model = currentTrack?.trackArtUri,
+                            model = currentTrack?.artworkUri,
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize().alpha(backgroundOpacity),
                             contentScale = ContentScale.Crop
@@ -281,7 +281,7 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                     style = vjStyle,
                     colorMode = vjColorMode,
                     singleColor = singleColor,
-                    artworkUri = currentTrack?.trackArtUri,
+                    artworkUri = currentTrack?.artworkUri,
                     zoomOnKickEnabled = zoomOnKick,
                     trackPeakLow = trackPeakLow,
                     trackPeakAll = trackPeakAll
@@ -297,7 +297,7 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                         modifier = Modifier.padding(horizontal = 16.dp)
                     ) {
                         AsyncImage(
-                            model = currentTrack?.trackArtUri,
+                            model = currentTrack?.artworkUri,
                             contentDescription = null,
                             modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)),
                             contentScale = ContentScale.Crop
@@ -460,7 +460,7 @@ fun TrackItem(track: MusicTrack, isSelected: Boolean, activeColor: Color, onClic
         verticalAlignment = Alignment.CenterVertically
     ) {
         AsyncImage(
-            model = track.trackArtUri,
+            model = track.artworkUri,
             contentDescription = null,
             modifier = Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)),
             contentScale = ContentScale.Crop

@@ -11,9 +11,6 @@ data class MusicTrack(
     val folderName: String?,
     val contentUri: Uri
 ) {
-    // MediaStore common album art
-    val albumArtUri: Uri get() = Uri.parse("content://media/external/audio/albumart/$albumId")
-    
-    // Priority track art (itself)
-    val trackArtUri: Uri get() = contentUri
+    // Standard MediaStore album art URI - the most reliable way to get art in Android
+    val artworkUri: Uri get() = Uri.parse("content://media/external/audio/albumart/$albumId")
 }
