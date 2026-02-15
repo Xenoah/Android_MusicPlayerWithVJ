@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">ミュージックプレイヤー VJ</string>
+    <string name="permission_required">権限が必要です</string>
+    <string name="permission_message">音楽を再生するために、ファイルへのアクセス権限を許可してください。</string>
+    <string name="grant_permission">権限を許可</string>
+    <string name="no_music_found">音楽ファイルが見つかりませんでした。</string>
+    <string name="now_playing">再生中</string>
+    <string name="unknown_artist">不明なアーティスト</string>
+    <string name="unknown_title">不明なタイトル</string>
+</resources>

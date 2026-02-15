@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Music Player VJ</string>
+    <string name="permission_required">Permission Required</string>
+    <string name="permission_message">This app needs access to your music files to play them.</string>
+    <string name="grant_permission">Grant Permission</string>
+    <string name="no_music_found">No music files found.</string>
+    <string name="now_playing">Now Playing</string>
+    <string name="unknown_artist">Unknown Artist</string>
+    <string name="unknown_title">Unknown Title</string>
+</resources>
