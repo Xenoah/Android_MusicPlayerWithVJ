@@ -8,8 +8,12 @@ data class MusicTrack(
     val artist: String,
     val album: String,
     val albumId: Long,
-    val genre: String?,
+    val folderName: String?,
     val contentUri: Uri
 ) {
-    val artworkUri: Uri get() = Uri.parse("content://media/external/audio/albumart/$albumId")
+    // MediaStore common album art
+    val albumArtUri: Uri get() = Uri.parse("content://media/external/audio/albumart/$albumId")
+    
+    // Priority track art (itself)
+    val trackArtUri: Uri get() = contentUri
 }

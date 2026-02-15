@@ -24,9 +24,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.math.hypot
+import kotlin.math.max
 
 enum class MusicRepeatMode { NONE, ONE, ALL }
-enum class VJStyle { LIQUID, NEON_WAVES, AURA_HEAT, SPEKTRO, ALCHEMY, SPIKE, BARS }
+enum class VJStyle { LIQUID, FLOWER, NEON_WAVES, AURA_HEAT, SPEKTRO, ALCHEMY, SPIKE, BARS }
 enum class BrowseCategory { ALL, FOLDERS, ALBUMS, ARTISTS }
 enum class SortOrder { TITLE, ARTIST, ALBUM, DATE_ADDED }
 enum class VJColorMode { SINGLE, COLORFUL }
@@ -89,11 +90,17 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _zoomOnKick = MutableStateFlow(prefs.getBoolean("zoom_on_kick", true))
     val zoomOnKick = _zoomOnKick.asStateFlow()
 
-    private val _fftData = MutableStateFlow(FloatArray(128)) // Increased for better bass resolution
+    private val _fftData = MutableStateFlow(FloatArray(256)) 
     val fftData = _fftData.asStateFlow()
 
-    private val _waveData = MutableStateFlow(ByteArray(256))
+    private val _waveData = MutableStateFlow(ByteArray(512))
     val waveData = _waveData.asStateFlow()
+
+    private val _trackPeakLow = MutableStateFlow(0.2f)
+    val trackPeakLow = _trackPeakLow.asStateFlow()
+
+    private val _trackPeakAll = MutableStateFlow(0.2f)
+    val trackPeakAll = _trackPeakAll.asStateFlow()
 
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition = _currentPosition.asStateFlow()
@@ -127,6 +134,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     _currentTrack.value = _allTracks.value.find { it.contentUri.toString() == mediaItem?.mediaId }
                     _duration.value = controller.duration.coerceAtLeast(0L)
+                    _trackPeakLow.value = 0.2f
+                    _trackPeakAll.value = 0.2f
                 }
                 override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
                     _isShuffle.value = shuffleModeEnabled
@@ -177,7 +186,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             val sessionId = controller?.sessionExtras?.getInt("AUDIO_SESSION_ID") ?: 0
             if (sessionId != 0) {
                 visualizer = Visualizer(sessionId).apply {
-                    captureSize = 512 // Increased for 50Hz precision
+                    captureSize = 1024 
                     setDataCaptureListener(object : Visualizer.OnDataCaptureListener {
                         override fun onWaveFormDataCapture(v: Visualizer?, waveform: ByteArray?, samplingRate: Int) {
                             waveform?.let { _waveData.value = it.copyOf() }
@@ -185,12 +194,23 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         override fun onFftDataCapture(v: Visualizer?, fft: ByteArray?, samplingRate: Int) {
                             fft?.let { data ->
                                 val magnitudes = FloatArray(data.size / 2)
+                                var currentMaxLow = 0f
+                                var currentMaxAll = 0f
                                 for (i in 0 until magnitudes.size) {
                                     val r = data[i * 2].toFloat()
                                     val im = data[i * 2 + 1].toFloat()
-                                    magnitudes[i] = hypot(r, im) / 256f // Normalized for 512 capture size
+                                    val mag = hypot(r, im) / 512f
+                                    magnitudes[i] = mag
+                                    
+                                    if (i in 1..2) {
+                                        if (mag > currentMaxLow) currentMaxLow = mag
+                                    }
+                                    if (mag > currentMaxAll) currentMaxAll = mag
                                 }
                                 _fftData.value = magnitudes
+                                
+                                if (currentMaxLow > _trackPeakLow.value) _trackPeakLow.value = currentMaxLow
+                                if (currentMaxAll > _trackPeakAll.value) _trackPeakAll.value = currentMaxAll
                             }
                         }
                     }, Visualizer.getMaxCaptureRate() / 2, true, true)
@@ -206,8 +226,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         visualizer?.enabled = false
         visualizer?.release()
         visualizer = null
-        _fftData.value = FloatArray(128)
-        _waveData.value = ByteArray(256)
+        _fftData.value = FloatArray(256)
+        _waveData.value = ByteArray(512)
     }
 
     fun loadMusic() {
@@ -262,7 +282,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         
         if (_currentCategory.value != BrowseCategory.ALL && _selectedItem.value == null) {
             val items = when (_currentCategory.value) {
-                BrowseCategory.FOLDERS -> all.mapNotNull { it.genre }.distinct().sorted()
+                BrowseCategory.FOLDERS -> all.mapNotNull { it.folderName }.distinct().sorted()
                 BrowseCategory.ALBUMS -> all.map { it.album }.distinct().sorted()
                 BrowseCategory.ARTISTS -> all.map { it.artist }.distinct().sorted()
                 else -> emptyList()
@@ -275,7 +295,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _categoryItems.value = emptyList()
         var list = when (_currentCategory.value) {
             BrowseCategory.ALL -> all
-            BrowseCategory.FOLDERS -> all.filter { it.genre == _selectedItem.value }
+            BrowseCategory.FOLDERS -> all.filter { it.folderName == _selectedItem.value }
             BrowseCategory.ALBUMS -> all.filter { it.album == _selectedItem.value }
             BrowseCategory.ARTISTS -> all.filter { it.artist == _selectedItem.value }
         }

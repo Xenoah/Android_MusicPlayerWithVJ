@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -130,6 +131,8 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
     val customBackgroundUri by viewModel.customBackgroundUri.collectAsState()
     val backgroundOpacity by viewModel.backgroundOpacity.collectAsState()
     val zoomOnKick by viewModel.zoomOnKick.collectAsState()
+    val trackPeakLow by viewModel.trackPeakLow.collectAsState()
+    val trackPeakAll by viewModel.trackPeakAll.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
     
@@ -252,7 +255,7 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                 when (backgroundMode) {
                     BackgroundMode.ALBUM_ART -> {
                         AsyncImage(
-                            model = currentTrack?.artworkUri,
+                            model = currentTrack?.trackArtUri,
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize().alpha(backgroundOpacity),
                             contentScale = ContentScale.Crop
@@ -278,8 +281,10 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                     style = vjStyle,
                     colorMode = vjColorMode,
                     singleColor = singleColor,
-                    artworkUri = currentTrack?.artworkUri,
-                    zoomOnKickEnabled = zoomOnKick
+                    artworkUri = currentTrack?.trackArtUri,
+                    zoomOnKickEnabled = zoomOnKick,
+                    trackPeakLow = trackPeakLow,
+                    trackPeakAll = trackPeakAll
                 )
                 
                 // Overlay Controls
@@ -292,7 +297,7 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                         modifier = Modifier.padding(horizontal = 16.dp)
                     ) {
                         AsyncImage(
-                            model = currentTrack?.artworkUri,
+                            model = currentTrack?.trackArtUri,
                             contentDescription = null,
                             modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)),
                             contentScale = ContentScale.Crop
@@ -431,6 +436,7 @@ fun VJSkinItem(style: VJStyle, isSelected: Boolean, activeColor: Color, onClick:
             Icon(
                 imageVector = when(style) {
                     VJStyle.LIQUID -> Icons.Default.Opacity
+                    VJStyle.FLOWER -> Icons.Default.FilterVintage
                     VJStyle.NEON_WAVES -> Icons.Default.Waves
                     VJStyle.AURA_HEAT -> Icons.Default.Whatshot
                     VJStyle.SPEKTRO -> Icons.Default.GraphicEq
@@ -454,7 +460,7 @@ fun TrackItem(track: MusicTrack, isSelected: Boolean, activeColor: Color, onClic
         verticalAlignment = Alignment.CenterVertically
     ) {
         AsyncImage(
-            model = track.artworkUri,
+            model = track.trackArtUri,
             contentDescription = null,
             modifier = Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)),
             contentScale = ContentScale.Crop
