@@ -11,9 +11,9 @@ data class MusicTrack(
     val folderName: String?,
     val contentUri: Uri
 ) {
-    // Coil (AsyncImage) will extract the embedded artwork directly from this URI.
+    // Priority: The audio file itself (embedded art)
     val artworkUri: Uri get() = contentUri
     
-    // MediaStore album art fallback
+    // Fallback: The album art from MediaStore
     val albumArtUri: Uri get() = Uri.parse("content://media/external/audio/albumart/$albumId")
 }

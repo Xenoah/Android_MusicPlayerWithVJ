@@ -111,7 +111,7 @@ fun VJCanvas(
             scale(scale = currentScale, pivot = center) {
                 when (style) {
                     VJStyle.FLOWER -> {
-                        // FLOWER: Contracts inward with volume (Beat oriented)
+                        // FLOWER: Contracts inward with volume
                         val path = Path()
                         val points = 128
                         val radiusData = FloatArray(points)
@@ -130,8 +130,11 @@ fun VJCanvas(
                             val r1 = radiusData[i]
                             val r2 = radiusData[(i + 1) % points]
                             
-                            val x1 = (center.x + r1 * cos(angle1)).toFloat(); val y1 = (center.y + r1 * sin(angle1)).toFloat()
-                            val xMid = (center.x + (r1 + r2) / 2.0 * cos(midAngle)).toFloat(); val yMid = (center.y + (r1 + r2) / 2.0 * sin(midAngle)).toFloat()
+                            val x1 = center.x + r1 * cos(angle1).toFloat()
+                            val y1 = center.y + r1 * sin(angle1).toFloat()
+                            val xMid = center.x + ((r1 + r2) / 2.0f) * cos(midAngle).toFloat()
+                            val yMid = center.y + ((r1 + r2) / 2.0f) * sin(midAngle).toFloat()
+                            
                             if (i == 0) path.moveTo(x1, y1)
                             path.quadraticBezierTo(x1, y1, xMid, yMid)
                         }
@@ -145,11 +148,10 @@ fun VJCanvas(
                         finalPath.addOval(circleRect)
                         
                         drawPath(finalPath, if (colorMode == VJColorMode.COLORFUL) Color.Magenta else singleColor)
-                        // Thin ring
                         drawCircle(if (colorMode == VJColorMode.COLORFUL) Color.Magenta else singleColor, radius = commonBaseR, style = Stroke(width = 2f))
                     }
                     VJStyle.LIQUID -> {
-                        // LIQUID: Expands outward with volume (Melody oriented)
+                        // LIQUID: Expands outward with volume
                         val path = Path()
                         val points = 128
                         val radiusData = FloatArray(points)
@@ -170,8 +172,11 @@ fun VJCanvas(
                             val r1 = radiusData[i]
                             val r2 = radiusData[(i + 1) % points]
                             
-                            val x1 = (center.x + r1 * cos(angle1)).toFloat(); val y1 = (center.y + r1 * sin(angle1)).toFloat()
-                            val xMid = (center.x + (r1 + r2) / 2.0 * cos(midAngle)).toFloat(); val yMid = (center.y + (r1 + r2) / 2.0 * sin(midAngle)).toFloat()
+                            val x1 = center.x + r1 * cos(angle1).toFloat()
+                            val y1 = center.y + r1 * sin(angle1).toFloat()
+                            val xMid = center.x + ((r1 + r2) / 2.0f) * cos(midAngle).toFloat()
+                            val yMid = center.y + ((r1 + r2) / 2.0f) * sin(midAngle).toFloat()
+                            
                             if (i == 0) path.moveTo(x1, y1)
                             path.quadraticBezierTo(x1, y1, xMid, yMid)
                         }
@@ -185,7 +190,6 @@ fun VJCanvas(
                         finalPath.addOval(circleRect)
                         
                         drawPath(finalPath, if (colorMode == VJColorMode.COLORFUL) Color.Cyan else singleColor)
-                        // Thin ring below waves
                         drawCircle(if (colorMode == VJColorMode.COLORFUL) Color.Cyan else singleColor, radius = commonBaseR, style = Stroke(width = 2f))
                     }
                     VJStyle.NEON_WAVES -> {
@@ -228,7 +232,8 @@ fun VJCanvas(
                             for (i in 0 until 64) {
                                 val angle = (i.toFloat() / 64f) * 2.0 * PI
                                 val r = (size.minDimension / 5f) + (fftData.getOrElse(i) { 0f } * 180f)
-                                val x = center.x + (r * cos(angle)).toFloat(); val y = (center.y + (r * sin(angle)).toFloat())
+                                val x = center.x + (r * cos(angle)).toFloat()
+                                val y = center.y + (r * sin(angle)).toFloat()
                                 if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
                             }
                             path.close()
