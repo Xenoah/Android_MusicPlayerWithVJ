@@ -140,12 +140,49 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
     val duration by viewModel.duration.collectAsState()
     val vjUiScale by viewModel.vjUiScale.collectAsState()
     val vjEffectScale by viewModel.vjEffectScale.collectAsState()
+    // Audio Effects State
+    val eqEnabled by viewModel.eqEnabled.collectAsState()
+    val eqBandLevels by viewModel.eqBandLevels.collectAsState()
+    val eqBandCount by viewModel.eqBandCount.collectAsState()
+    val eqBandFreqs by viewModel.eqBandFreqs.collectAsState()
+    val eqLevelRange by viewModel.eqLevelRange.collectAsState()
+    val bassBoostEnabled by viewModel.bassBoostEnabled.collectAsState()
+    val bassBoostStrength by viewModel.bassBoostStrength.collectAsState()
+    val virtualizerEnabled by viewModel.virtualizerEnabled.collectAsState()
+    val virtualizerStrength by viewModel.virtualizerStrength.collectAsState()
+    val reverbPreset by viewModel.reverbPreset.collectAsState()
     
     val currentCategory by viewModel.currentCategory.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
 
+    var showEqPanel by remember { mutableStateOf(false) }
+
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         viewModel.setCustomBackgroundUri(uri?.toString())
+    }
+
+    if (showEqPanel) {
+        AudioEffectPanel(
+            eqEnabled = eqEnabled,
+            eqBandLevels = eqBandLevels,
+            eqBandCount = eqBandCount,
+            eqBandFreqs = eqBandFreqs,
+            eqLevelRange = eqLevelRange,
+            bassBoostEnabled = bassBoostEnabled,
+            bassBoostStrength = bassBoostStrength,
+            virtualizerEnabled = virtualizerEnabled,
+            virtualizerStrength = virtualizerStrength,
+            reverbPreset = reverbPreset,
+            activeColor = singleColor,
+            onDismiss = { showEqPanel = false },
+            onEqEnabled = { viewModel.setEqEnabled(it) },
+            onEqBandLevel = { band, level -> viewModel.setEqBandLevel(band, level) },
+            onBassBoostEnabled = { viewModel.setBassBoostEnabled(it) },
+            onBassBoostStrength = { viewModel.setBassBoostStrength(it) },
+            onVirtualizerEnabled = { viewModel.setVirtualizerEnabled(it) },
+            onVirtualizerStrength = { viewModel.setVirtualizerStrength(it) },
+            onReverbPreset = { viewModel.setReverbPreset(it) }
+        )
     }
 
     Scaffold(
@@ -234,7 +271,7 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                             Slider(
                                 value = currentEffectScale,
                                 onValueChange = { viewModel.setVJEffectScale(vjStyle, it) },
-                                valueRange = 0.5f..4.0f,
+                                valueRange = 0.1f..10.0f,
                                 colors = SliderDefaults.colors(activeTrackColor = singleColor, thumbColor = singleColor)
                             )
                         }
@@ -371,6 +408,9 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                         }
                         IconButton(onClick = { viewModel.toggleRepeat() }) {
                             Icon(if (repeatMode == MusicRepeatMode.ONE) Icons.Default.RepeatOne else Icons.Default.Repeat, null, tint = if (repeatMode != MusicRepeatMode.NONE) singleColor else Color.White)
+                        }
+                        IconButton(onClick = { showEqPanel = true }) {
+                            Icon(Icons.Default.Equalizer, null, tint = if (eqEnabled || bassBoostEnabled || virtualizerEnabled) singleColor else Color.White)
                         }
                     }
                 }
@@ -515,6 +555,134 @@ fun TrackItem(track: MusicTrack, isSelected: Boolean, activeColor: Color, onClic
         Column {
             Text(text = track.title, fontWeight = FontWeight.Bold, maxLines = 1, color = if (isSelected) activeColor else MaterialTheme.colorScheme.onSurface)
             Text(text = "${track.artist} • ${track.album}", style = MaterialTheme.typography.bodySmall, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AudioEffectPanel(
+    eqEnabled: Boolean,
+    eqBandLevels: IntArray,
+    eqBandCount: Int,
+    eqBandFreqs: IntArray,
+    eqLevelRange: Pair<Int, Int>,
+    bassBoostEnabled: Boolean,
+    bassBoostStrength: Int,
+    virtualizerEnabled: Boolean,
+    virtualizerStrength: Int,
+    reverbPreset: Short,
+    activeColor: Color,
+    onDismiss: () -> Unit,
+    onEqEnabled: (Boolean) -> Unit,
+    onEqBandLevel: (Int, Int) -> Unit,
+    onBassBoostEnabled: (Boolean) -> Unit,
+    onBassBoostStrength: (Int) -> Unit,
+    onVirtualizerEnabled: (Boolean) -> Unit,
+    onVirtualizerStrength: (Int) -> Unit,
+    onReverbPreset: (Short) -> Unit
+) {
+    val reverbNames = listOf("NONE", "SmallRoom", "MedRoom", "LargeRoom", "MedHall", "LargeHall", "Plate")
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            Text("EQ & エフェクト", fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(bottom = 16.dp))
+
+            // ---- Equalizer ----
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("イコライザー (EQ)", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Switch(checked = eqEnabled, onCheckedChange = onEqEnabled, colors = SwitchDefaults.colors(checkedThumbColor = activeColor, checkedTrackColor = activeColor.copy(alpha = 0.5f)))
+            }
+            if (eqEnabled) {
+                val minMb = eqLevelRange.first.toFloat()
+                val maxMb = eqLevelRange.second.toFloat()
+                for (band in 0 until eqBandCount) {
+                    val freqHz = (eqBandFreqs.getOrElse(band) { 0 } / 1000)
+                    val freqLabel = if (freqHz >= 1000) "${freqHz / 1000}kHz" else "${freqHz}Hz"
+                    val levelMb = eqBandLevels.getOrElse(band) { 0 }.toFloat()
+                    val gainDb = "%.1f".format(levelMb / 100f)
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text(freqLabel, fontSize = 11.sp, modifier = Modifier.width(46.dp))
+                        Slider(
+                            value = levelMb,
+                            onValueChange = { onEqBandLevel(band, it.toInt()) },
+                            valueRange = minMb..maxMb,
+                            modifier = Modifier.weight(1f),
+                            colors = SliderDefaults.colors(activeTrackColor = activeColor, thumbColor = activeColor)
+                        )
+                        Text("${gainDb}dB", fontSize = 11.sp, modifier = Modifier.width(52.dp))
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+            // ---- Bass Boost ----
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("Bass Boost", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Switch(checked = bassBoostEnabled, onCheckedChange = onBassBoostEnabled, colors = SwitchDefaults.colors(checkedThumbColor = activeColor, checkedTrackColor = activeColor.copy(alpha = 0.5f)))
+            }
+            if (bassBoostEnabled) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text("強度", fontSize = 12.sp, modifier = Modifier.width(40.dp))
+                    Slider(
+                        value = bassBoostStrength.toFloat(),
+                        onValueChange = { onBassBoostStrength(it.toInt()) },
+                        valueRange = 0f..1000f,
+                        modifier = Modifier.weight(1f),
+                        colors = SliderDefaults.colors(activeTrackColor = activeColor, thumbColor = activeColor)
+                    )
+                    Text(bassBoostStrength.toString(), fontSize = 12.sp, modifier = Modifier.width(40.dp))
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+            // ---- Virtualizer ----
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("立体音響 (Virtualizer)", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Switch(checked = virtualizerEnabled, onCheckedChange = onVirtualizerEnabled, colors = SwitchDefaults.colors(checkedThumbColor = activeColor, checkedTrackColor = activeColor.copy(alpha = 0.5f)))
+            }
+            if (virtualizerEnabled) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text("強度", fontSize = 12.sp, modifier = Modifier.width(40.dp))
+                    Slider(
+                        value = virtualizerStrength.toFloat(),
+                        onValueChange = { onVirtualizerStrength(it.toInt()) },
+                        valueRange = 0f..1000f,
+                        modifier = Modifier.weight(1f),
+                        colors = SliderDefaults.colors(activeTrackColor = activeColor, thumbColor = activeColor)
+                    )
+                    Text(virtualizerStrength.toString(), fontSize = 12.sp, modifier = Modifier.width(40.dp))
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+            // ---- Reverb ----
+            Text("リバーブ (空間エフェクト)", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(reverbNames.size) { idx ->
+                    val isSelected = reverbPreset.toInt() == idx
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { onReverbPreset(idx.toShort()) },
+                        label = { Text(reverbNames[idx], fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = activeColor.copy(alpha = 0.2f),
+                            selectedLabelColor = activeColor
+                        )
+                    )
+                }
+            }
         }
     }
 }

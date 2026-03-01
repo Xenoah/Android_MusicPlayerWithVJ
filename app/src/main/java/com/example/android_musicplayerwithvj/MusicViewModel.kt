@@ -27,6 +27,10 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.hypot
 import kotlin.math.max
+import android.media.audiofx.BassBoost
+import android.media.audiofx.Equalizer
+import android.media.audiofx.PresetReverb
+import android.media.audiofx.Virtualizer
 
 enum class MusicRepeatMode { NONE, ONE, ALL }
 enum class VJStyle { LIQUID, FLOWER, NEON_WAVES, AURA_HEAT, SPEKTRO, ALCHEMY, SPIKE, BARS }
@@ -124,6 +128,38 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _trackPeakAll = MutableStateFlow(0.2f)
     val trackPeakAll = _trackPeakAll.asStateFlow()
 
+    // ---- Audio Effects State ----
+    private val _eqEnabled = MutableStateFlow(prefs.getBoolean("eq_enabled", false))
+    val eqEnabled = _eqEnabled.asStateFlow()
+
+    // Band levels stored as IntArray (mB). Populated after EQ is initialized.
+    private val _eqBandLevels = MutableStateFlow(IntArray(5) { 0 })
+    val eqBandLevels = _eqBandLevels.asStateFlow()
+
+    private val _eqBandCount = MutableStateFlow(5)
+    val eqBandCount = _eqBandCount.asStateFlow()
+
+    private val _eqBandFreqs = MutableStateFlow(intArrayOf(60000, 230000, 910000, 3600000, 14000000))
+    val eqBandFreqs = _eqBandFreqs.asStateFlow()
+
+    private val _eqLevelRange = MutableStateFlow(Pair(-1500, 1500))
+    val eqLevelRange = _eqLevelRange.asStateFlow()
+
+    private val _bassBoostEnabled = MutableStateFlow(prefs.getBoolean("bb_enabled", false))
+    val bassBoostEnabled = _bassBoostEnabled.asStateFlow()
+
+    private val _bassBoostStrength = MutableStateFlow(prefs.getInt("bb_strength", 500))
+    val bassBoostStrength = _bassBoostStrength.asStateFlow()
+
+    private val _virtualizerEnabled = MutableStateFlow(prefs.getBoolean("virt_enabled", false))
+    val virtualizerEnabled = _virtualizerEnabled.asStateFlow()
+
+    private val _virtualizerStrength = MutableStateFlow(prefs.getInt("virt_strength", 500))
+    val virtualizerStrength = _virtualizerStrength.asStateFlow()
+
+    private val _reverbPreset = MutableStateFlow(prefs.getInt("reverb_preset", PresetReverb.PRESET_NONE.toInt()).toShort())
+    val reverbPreset = _reverbPreset.asStateFlow()
+
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition = _currentPosition.asStateFlow()
 
@@ -131,6 +167,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val duration = _duration.asStateFlow()
 
     private var visualizer: Visualizer? = null
+    private var equalizer: Equalizer? = null
+    private var bassBoost: BassBoost? = null
+    private var virtualizer: Virtualizer? = null
+    private var presetReverb: PresetReverb? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private val controller: MediaController?
         get() = try {
@@ -248,6 +288,52 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+        // Setup audio effects on the same audio session
+        val sessionId = controller?.sessionExtras?.getInt("AUDIO_SESSION_ID") ?: 0
+        if (sessionId != 0) setupAudioEffects(sessionId)
+    }
+
+    @Synchronized
+    private fun setupAudioEffects(sessionId: Int) {
+        try {
+            releaseAudioEffects()
+
+            // Equalizer
+            equalizer = Equalizer(0, sessionId).apply {
+                val count = numberOfBands.toInt()
+                _eqBandCount.value = count
+                val levels = IntArray(count) { band ->
+                    prefs.getInt("eq_band_$band", 0)
+                }
+                _eqBandLevels.value = levels
+                val range = bandLevelRange
+                _eqLevelRange.value = Pair(range[0].toInt(), range[1].toInt())
+                val freqs = IntArray(count) { band -> getCenterFreq(band.toShort()) }
+                _eqBandFreqs.value = freqs
+                levels.forEachIndexed { band, level -> setBandLevel(band.toShort(), level.toShort()) }
+                enabled = _eqEnabled.value
+            }
+
+            // Bass Boost
+            bassBoost = BassBoost(0, sessionId).apply {
+                enabled = _bassBoostEnabled.value
+                if (strengthSupported) setStrength(_bassBoostStrength.value.toShort())
+            }
+
+            // Virtualizer
+            virtualizer = Virtualizer(0, sessionId).apply {
+                enabled = _virtualizerEnabled.value
+                if (strengthSupported) setStrength(_virtualizerStrength.value.toShort())
+            }
+
+            // Reverb
+            presetReverb = PresetReverb(0, sessionId).apply {
+                preset = _reverbPreset.value
+                enabled = _reverbPreset.value != PresetReverb.PRESET_NONE
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     @Synchronized
@@ -257,6 +343,19 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         visualizer = null
         _fftData.value = FloatArray(256)
         _waveData.value = ByteArray(512)
+        releaseAudioEffects()
+    }
+
+    @Synchronized
+    private fun releaseAudioEffects() {
+        try { equalizer?.release() } catch (_: Exception) {}
+        try { bassBoost?.release() } catch (_: Exception) {}
+        try { virtualizer?.release() } catch (_: Exception) {}
+        try { presetReverb?.release() } catch (_: Exception) {}
+        equalizer = null
+        bassBoost = null
+        virtualizer = null
+        presetReverb = null
     }
 
     fun loadMusic() {
@@ -444,6 +543,52 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun setVJEffectScale(style: VJStyle, scale: Float) {
         _vjEffectScale.value = _vjEffectScale.value + (style to scale)
         prefs.edit().putFloat("vj_effect_scale_${style.name}", scale).apply()
+    }
+
+    // ---- Audio Effect Setters ----
+    fun setEqEnabled(enabled: Boolean) {
+        _eqEnabled.value = enabled
+        equalizer?.enabled = enabled
+        prefs.edit().putBoolean("eq_enabled", enabled).apply()
+    }
+
+    fun setEqBandLevel(band: Int, levelMb: Int) {
+        val levels = _eqBandLevels.value.copyOf()
+        levels[band] = levelMb
+        _eqBandLevels.value = levels
+        equalizer?.setBandLevel(band.toShort(), levelMb.toShort())
+        prefs.edit().putInt("eq_band_$band", levelMb).apply()
+    }
+
+    fun setBassBoostEnabled(enabled: Boolean) {
+        _bassBoostEnabled.value = enabled
+        bassBoost?.enabled = enabled
+        prefs.edit().putBoolean("bb_enabled", enabled).apply()
+    }
+
+    fun setBassBoostStrength(strength: Int) {
+        _bassBoostStrength.value = strength
+        try { bassBoost?.setStrength(strength.toShort()) } catch (_: Exception) {}
+        prefs.edit().putInt("bb_strength", strength).apply()
+    }
+
+    fun setVirtualizerEnabled(enabled: Boolean) {
+        _virtualizerEnabled.value = enabled
+        virtualizer?.enabled = enabled
+        prefs.edit().putBoolean("virt_enabled", enabled).apply()
+    }
+
+    fun setVirtualizerStrength(strength: Int) {
+        _virtualizerStrength.value = strength
+        try { virtualizer?.setStrength(strength.toShort()) } catch (_: Exception) {}
+        prefs.edit().putInt("virt_strength", strength).apply()
+    }
+
+    fun setReverbPreset(preset: Short) {
+        _reverbPreset.value = preset
+        presetReverb?.preset = preset
+        presetReverb?.enabled = preset != PresetReverb.PRESET_NONE
+        prefs.edit().putInt("reverb_preset", preset.toInt()).apply()
     }
 
     override fun onCleared() {
