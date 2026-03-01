@@ -20,6 +20,12 @@ import androidx.compose.ui.platform.LocalDensity
 import coil.compose.AsyncImage
 import kotlin.math.*
 
+data class AuraParticle(
+    val x: Float, val y: Float,
+    val vx: Float, val vy: Float,
+    val life: Float, val hue: Float, val sz: Float
+)
+
 @Composable
 fun VJCanvas(
     isPlaying: Boolean,
@@ -83,14 +89,80 @@ fun VJCanvas(
     )
 
 
+    // ---- Spectral centroid for timbre-based color (AURA_HEAT) ----
+    val spectralCentroid = if (fftData.size > 2) {
+        var ws = 0f; var tw = 0f
+        for (i in 1 until fftData.size) { ws += i * fftData[i]; tw += fftData[i] }
+        if (tw > 0f) (ws / tw / fftData.size).coerceIn(0f, 1f) else 0f
+    } else 0f
+    // bass=red(0), mid=yellow(60), treble=purple(270)
+    val timbreHue = spectralCentroid * 270f
+
+    // ---- High-frequency transient detection for firework particles ----
+    val hiStart = (fftData.size * 0.5f).toInt().coerceAtLeast(1)
+    val hiEnd   = (fftData.size * 0.75f).toInt().coerceAtMost(fftData.size)
+    val hiEnergy = if (hiEnd > hiStart) {
+        (hiStart until hiEnd).sumOf { fftData.getOrElse(it) { 0f }.toDouble() }.toFloat() / (hiEnd - hiStart)
+    } else 0f
+
+    var hiBaseline by remember { mutableFloatStateOf(0f) }
+    hiBaseline = hiBaseline * 0.88f + hiEnergy * 0.12f
+    val isTransient = hiEnergy > hiBaseline * 2.2f && hiEnergy > 0.015f
+
+    var lastTransientMs by remember { mutableLongStateOf(0L) }
+    val gatedTransient = isTransient && (currentTimeMs - lastTransientMs) > 80L
+    if (gatedTransient) lastTransientMs = currentTimeMs
+
+    // ---- Particle state (AURA_HEAT fireworks) ----
+    var auraParticles by remember { mutableStateOf(listOf<AuraParticle>()) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(16)
+            auraParticles = auraParticles.mapNotNull { p ->
+                if (p.life <= 0.02f) null
+                else p.copy(
+                    x = p.x + p.vx,
+                    y = p.y + p.vy,
+                    vy = p.vy + 0.25f,
+                    vx = p.vx * 0.97f,
+                    life = p.life - 0.018f
+                )
+            }
+        }
+    }
+
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val density = LocalDensity.current
         val widthPx = constraints.maxWidth.toFloat()
         val heightPx = constraints.maxHeight.toFloat()
         val maxDimPx = min(widthPx, heightPx)
-        
+        val cx = widthPx / 2f
+        val cy = heightPx / 2f
+
+        // Spawn firework burst when transient detected (AURA_HEAT only)
+        if (gatedTransient && style == VJStyle.AURA_HEAT && isPlaying) {
+            val rand = kotlin.random.Random.Default
+            val burstCount = 24
+            val newParticles = (0 until burstCount).map { i ->
+                val angle = (i.toFloat() / burstCount) * 2f * PI.toFloat() + rand.nextFloat() * 0.4f
+                val speed = 8f + rand.nextFloat() * 14f * effectScale.coerceAtMost(3f)
+                AuraParticle(
+                    x = cx, y = cy,
+                    vx = cos(angle) * speed,
+                    vy = sin(angle) * speed - 2f,
+                    life = 0.7f + rand.nextFloat() * 0.3f,
+                    hue = (timbreHue + rand.nextFloat() * 40f - 20f).mod(360f),
+                    sz = 4f + rand.nextFloat() * 8f
+                )
+            }
+            auraParticles = (auraParticles + newParticles).takeLast(300)
+        }
+
         // Common base radius (70% scale), further scaled by uiScale
         val commonBaseR = (maxDimPx / 3.2f) * 0.7f * uiScale
+
 
         // 1. First, draw artwork (Bottom layer)
         if ((style == VJStyle.LIQUID || style == VJStyle.FLOWER) && artworkUri != null) {
@@ -247,12 +319,48 @@ fun VJCanvas(
                     }
                     VJStyle.AURA_HEAT -> {
                         val avgFft = if (fftData.isNotEmpty()) fftData.average().toFloat() else 0f
-                        val colors = if (colorMode == VJColorMode.COLORFUL) listOf(Color.Blue, Color.Magenta, Color.Red, Color.Yellow) else listOf(singleColor, singleColor, singleColor, singleColor)
+
+                        // --- Background aura blobs (timbre-colored) ---
+                        val auraColor = if (colorMode == VJColorMode.COLORFUL)
+                            Color.hsv(timbreHue, 0.85f, 1f)
+                        else singleColor
+
                         for (i in 0 until 5) {
-                            val angle = (time * (i + 1) * 0.2f).toDouble()
-                            val r = (size.minDimension / 3f) * (1f + avgFft * 2f * effectScale)
-                            val offset = Offset(center.x + cos(angle).toFloat() * 200f * avgFft, center.y + sin(angle).toFloat() * 200f * avgFft)
-                            drawCircle(brush = Brush.radialGradient(colors = listOf(colors[i % colors.size].copy(alpha = 0.7f), Color.Transparent), center = offset, radius = r), radius = r, center = offset)
+                            val angle = (time * (i + 1) * 0.18f + i * 72.0).toDouble()
+                            val orbitR = 90f + i * 30f
+                            val blobR  = (size.minDimension / 4.5f) * (1f + avgFft * 2.5f * effectScale)
+                            val blobHue = if (colorMode == VJColorMode.COLORFUL)
+                                (timbreHue + i * 54f).mod(360f) else null
+                            val blobColor = if (blobHue != null) Color.hsv(blobHue, 0.9f, 1f) else singleColor
+                            val offset = Offset(
+                                center.x + cos(angle).toFloat() * orbitR * avgFft * 2f,
+                                center.y + sin(angle).toFloat() * orbitR * avgFft * 2f
+                            )
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(blobColor.copy(alpha = 0.55f), Color.Transparent),
+                                    center = offset, radius = blobR
+                                ),
+                                radius = blobR, center = offset
+                            )
+                        }
+
+                        // --- Central pulsing ring (timbre color, kick reactive) ---
+                        val ringR = commonBaseR * (0.6f + avgFft * effectScale)
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(Color.Transparent, auraColor.copy(alpha = 0.4f), Color.Transparent),
+                                center = center, radius = ringR
+                            ),
+                            radius = ringR, center = center
+                        )
+
+                        // --- Firework particles ---
+                        auraParticles.forEach { p ->
+                            val pColor = if (colorMode == VJColorMode.COLORFUL)
+                                Color.hsv(p.hue, 1f, 1f).copy(alpha = p.life)
+                            else singleColor.copy(alpha = p.life)
+                            drawCircle(color = pColor, radius = p.sz * p.life, center = Offset(p.x, p.y))
                         }
                     }
                     VJStyle.SPEKTRO -> {
