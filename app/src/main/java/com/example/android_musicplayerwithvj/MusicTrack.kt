@@ -9,11 +9,9 @@ data class MusicTrack(
     val album: String,
     val albumId: Long,
     val folderName: String?,
-    val contentUri: Uri
+    val contentUri: Uri,
+    val dateAdded: Long = 0L
 ) {
-    // Priority: The audio file itself (embedded art)
-    val artworkUri: Uri get() = contentUri
-    
-    // Fallback: The album art from MediaStore
-    val albumArtUri: Uri get() = Uri.parse("content://media/external/audio/albumart/$albumId")
+    // MediaStore album art URI (reliable for most devices)
+    val artworkUri: Uri get() = Uri.parse("content://media/external/audio/albumart/$albumId")
 }

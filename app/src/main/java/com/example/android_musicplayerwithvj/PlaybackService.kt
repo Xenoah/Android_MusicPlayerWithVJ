@@ -32,6 +32,14 @@ class PlaybackService : MediaSessionService() {
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
+    override fun onTaskRemoved(rootIntent: android.content.Intent?) {
+        mediaSession?.player?.let { player ->
+            if (!player.playWhenReady || player.mediaItemCount == 0) {
+                stopSelf()
+            }
+        }
+    }
+
     override fun onDestroy() {
         mediaSession?.run {
             player.release()

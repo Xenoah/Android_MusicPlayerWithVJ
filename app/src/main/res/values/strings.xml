@@ -1,10 +1,19 @@
 <resources>
     <string name="app_name">Music Player VJ</string>
     <string name="permission_required">Permission Required</string>
-    <string name="permission_message">This app needs access to your music files to play them.</string>
+    <string name="permission_message">This app needs access to your music files and audio recording to work.</string>
     <string name="grant_permission">Grant Permission</string>
     <string name="no_music_found">No music files found.</string>
     <string name="now_playing">Now Playing</string>
     <string name="unknown_artist">Unknown Artist</string>
     <string name="unknown_title">Unknown Title</string>
+    <string name="light_mode">Light Mode</string>
+    <string name="dark_mode">Dark Mode</string>
+    <string name="visualizer_settings">Visualizer Settings</string>
+    <string name="zoom_on_kick">Zoom on Kick</string>
+    <string name="background_mode_label">Background Mode</string>
+    <string name="select_custom_image">Select Custom Image</string>
+    <string name="opacity_format">Opacity: %1$d%%</string>
+    <string name="all_songs">All Songs</string>
+    <string name="select_visualizer">Select Visualizer</string>
 </resources>

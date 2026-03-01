@@ -1,10 +1,19 @@
 <resources>
     <string name="app_name">ミュージックプレイヤー VJ</string>
     <string name="permission_required">権限が必要です</string>
-    <string name="permission_message">音楽を再生するために、ファイルへのアクセス権限を許可してください。</string>
+    <string name="permission_message">音楽の再生と音声ビジュアライザーのために、ファイルへのアクセス権限と録音権限を許可してください。</string>
     <string name="grant_permission">権限を許可</string>
     <string name="no_music_found">音楽ファイルが見つかりませんでした。</string>
     <string name="now_playing">再生中</string>
     <string name="unknown_artist">不明なアーティスト</string>
     <string name="unknown_title">不明なタイトル</string>
+    <string name="light_mode">ライトモード</string>
+    <string name="dark_mode">ダークモード</string>
+    <string name="visualizer_settings">ビジュアライザー設定</string>
+    <string name="zoom_on_kick">キックでズーム</string>
+    <string name="background_mode_label">背景モード</string>
+    <string name="select_custom_image">カスタム画像を選択</string>
+    <string name="opacity_format">不透明度: %1$d%%</string>
+    <string name="all_songs">全曲</string>
+    <string name="select_visualizer">ビジュアライザーを選択</string>
 </resources>

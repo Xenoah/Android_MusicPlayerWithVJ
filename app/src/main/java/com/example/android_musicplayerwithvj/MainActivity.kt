@@ -104,7 +104,7 @@ fun PermissionRequestScreen(onRequestPermission: () -> Unit) {
     ) {
         Text(text = stringResource(R.string.permission_required), fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(8.dp))
-        Text(text = "App needs storage and audio record permissions to work.")
+        Text(text = stringResource(R.string.permission_message))
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRequestPermission) {
             Text(text = stringResource(R.string.grant_permission))
@@ -161,13 +161,13 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                         modifier = Modifier.width(260.dp)
                     ) {
                         DropdownMenuItem(
-                            text = { Text(if (isDarkMode) "Light Mode" else "Dark Mode") },
+                            text = { Text(if (isDarkMode) stringResource(R.string.light_mode) else stringResource(R.string.dark_mode)) },
                             onClick = { viewModel.toggleTheme(); showCustomizeMenu = false },
                             leadingIcon = { Icon(if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode, null) }
                         )
                         HorizontalDivider()
                         
-                        Text("Visualizer Settings", modifier = Modifier.padding(16.dp, 8.dp, 16.dp, 4.dp), style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.visualizer_settings), modifier = Modifier.padding(16.dp, 8.dp, 16.dp, 4.dp), style = MaterialTheme.typography.labelSmall)
                         Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             VJColorMode.entries.forEach { mode ->
                                 val isSelected = vjColorMode == mode
@@ -203,14 +203,14 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                         }
 
                         DropdownMenuItem(
-                            text = { Text("Zoom on Kick") },
+                            text = { Text(stringResource(R.string.zoom_on_kick)) },
                             onClick = { viewModel.setZoomOnKick(!zoomOnKick) },
                             trailingIcon = { Checkbox(checked = zoomOnKick, onCheckedChange = null) }
                         )
                         
                         HorizontalDivider()
                         
-                        Text("Background Mode", modifier = Modifier.padding(16.dp, 8.dp, 16.dp, 4.dp), style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.background_mode_label), modifier = Modifier.padding(16.dp, 8.dp, 16.dp, 4.dp), style = MaterialTheme.typography.labelSmall)
                         Column(modifier = Modifier.padding(horizontal = 8.dp).fillMaxWidth()) {
                             BackgroundMode.entries.forEach { mode ->
                                 DropdownMenuItem(
@@ -223,7 +223,7 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                         
                         if (backgroundMode == BackgroundMode.CUSTOM) {
                             DropdownMenuItem(
-                                text = { Text("Select Custom Image") },
+                                text = { Text(stringResource(R.string.select_custom_image)) },
                                 onClick = { launcher.launch("image/*"); showCustomizeMenu = false },
                                 leadingIcon = { Icon(Icons.Default.Image, null) }
                             )
@@ -231,7 +231,7 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                         
                         if (backgroundMode != BackgroundMode.NONE) {
                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                                Text("Opacity: ${(backgroundOpacity * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.opacity_format, (backgroundOpacity * 100).toInt()), style = MaterialTheme.typography.labelSmall)
                                 Slider(
                                     value = backgroundOpacity,
                                     onValueChange = { viewModel.setBackgroundOpacity(it) },
@@ -356,7 +356,7 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                         Tab(
                             selected = currentCategory == category,
                             onClick = { viewModel.setCategory(category) },
-                            text = { Text(if (category == BrowseCategory.ALL) "All Songs" else category.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp, color = if (currentCategory == category) singleColor else MaterialTheme.colorScheme.onSurface) }
+                            text = { Text(if (category == BrowseCategory.ALL) stringResource(R.string.all_songs) else category.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp, color = if (currentCategory == category) singleColor else MaterialTheme.colorScheme.onSurface) }
                         )
                     }
                 }
@@ -380,7 +380,7 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
             }
 
             // Skin / VJ Style Selector
-            Text("Select Visualizer", modifier = Modifier.padding(8.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.select_visualizer), modifier = Modifier.padding(8.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
             LazyRow(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -466,7 +466,7 @@ fun VJSkinItem(style: VJStyle, isSelected: Boolean, activeColor: Color, onClick:
 fun TrackItem(track: MusicTrack, isSelected: Boolean, activeColor: Color, onClick: () -> Unit) {
     val context = LocalContext.current
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp).background(if (isSelected) activeColor.copy(alpha = 0.2f) else Color.Transparent),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).background(if (isSelected) activeColor.copy(alpha = 0.2f) else Color.Transparent).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AsyncImage(

@@ -17,11 +17,13 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.hypot
 import kotlin.math.max
@@ -111,7 +113,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private var visualizer: Visualizer? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private val controller: MediaController?
-        get() = if (controllerFuture?.isDone == true) controllerFuture?.get() else null
+        get() = try {
+            val future = controllerFuture
+            if (future != null && future.isDone && !future.isCancelled) future.get() else null
+        } catch (e: Exception) {
+            null
+        }
 
     private var positionUpdateJob: Job? = null
 
@@ -124,7 +131,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     _isPlaying.value = isPlaying
                     if (isPlaying) {
-                        setupVisualizer()
+                        viewModelScope.launch(Dispatchers.Main) { setupVisualizer() }
                         startPositionUpdate()
                     } else {
                         releaseVisualizer()
@@ -157,7 +164,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             _isPlaying.value = controller.isPlaying
             _isShuffle.value = controller.shuffleModeEnabled
             if (controller.isPlaying) {
-                setupVisualizer()
+                viewModelScope.launch(Dispatchers.Main) { setupVisualizer() }
                 startPositionUpdate()
             }
         }, MoreExecutors.directExecutor())
@@ -180,6 +187,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         positionUpdateJob = null
     }
 
+    @Synchronized
     private fun setupVisualizer() {
         try {
             releaseVisualizer()
@@ -222,6 +230,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    @Synchronized
     private fun releaseVisualizer() {
         visualizer?.enabled = false
         visualizer?.release()
@@ -232,45 +241,51 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadMusic() {
         viewModelScope.launch {
-            val musicList = mutableListOf<MusicTrack>()
-            val projection = arrayOf(
-                MediaStore.Audio.Media._ID,
-                MediaStore.Audio.Media.TITLE,
-                MediaStore.Audio.Media.ARTIST,
-                MediaStore.Audio.Media.ALBUM,
-                MediaStore.Audio.Media.ALBUM_ID,
-                MediaStore.Audio.Media.DATA
-            )
-            
-            getApplication<Application>().contentResolver.query(
-                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                projection,
-                "${MediaStore.Audio.Media.IS_MUSIC} != 0",
-                null,
-                "${MediaStore.Audio.Media.TITLE} ASC"
-            )?.use { cursor ->
-                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-                val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-                val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-                val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-                val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+            val musicList = withContext(Dispatchers.IO) {
+                val list = mutableListOf<MusicTrack>()
+                val projection = arrayOf(
+                    MediaStore.Audio.Media._ID,
+                    MediaStore.Audio.Media.TITLE,
+                    MediaStore.Audio.Media.ARTIST,
+                    MediaStore.Audio.Media.ALBUM,
+                    MediaStore.Audio.Media.ALBUM_ID,
+                    MediaStore.Audio.Media.DATA,
+                    MediaStore.Audio.Media.DATE_ADDED
+                )
+                
+                getApplication<Application>().contentResolver.query(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    projection,
+                    "${MediaStore.Audio.Media.IS_MUSIC} != 0",
+                    null,
+                    "${MediaStore.Audio.Media.TITLE} ASC"
+                )?.use { cursor ->
+                    val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                    val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                    val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                    val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                    val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                    val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
 
-                while (cursor.moveToNext()) {
-                    val id = cursor.getLong(idCol)
-                    val albumId = cursor.getLong(albumIdCol)
-                    val data = cursor.getString(dataCol)
-                    val folder = File(data).parentFile?.name ?: "Unknown"
-                    musicList.add(MusicTrack(
-                        id,
-                        cursor.getString(titleCol),
-                        cursor.getString(artistCol),
-                        cursor.getString(albumCol),
-                        albumId,
-                        folder,
-                        ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
-                    ))
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getLong(idCol)
+                        val albumId = cursor.getLong(albumIdCol)
+                        val data = cursor.getString(dataCol)
+                        val folder = File(data).parentFile?.name ?: "Unknown"
+                        list.add(MusicTrack(
+                            id,
+                            cursor.getString(titleCol),
+                            cursor.getString(artistCol),
+                            cursor.getString(albumCol),
+                            albumId,
+                            folder,
+                            ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id),
+                            cursor.getLong(dateAddedCol)
+                        ))
+                    }
                 }
+                list
             }
             _allTracks.value = musicList
             applyFilterAndSort()
@@ -304,7 +319,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             SortOrder.TITLE -> list.sortedBy { it.title.lowercase() }
             SortOrder.ARTIST -> list.sortedBy { it.artist.lowercase() }
             SortOrder.ALBUM -> list.sortedBy { it.album.lowercase() }
-            SortOrder.DATE_ADDED -> list.reversed()
+            SortOrder.DATE_ADDED -> list.sortedByDescending { it.dateAdded }
         }
         
         _tracks.value = list
