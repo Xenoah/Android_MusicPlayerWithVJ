@@ -92,6 +92,26 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _zoomOnKick = MutableStateFlow(prefs.getBoolean("zoom_on_kick", true))
     val zoomOnKick = _zoomOnKick.asStateFlow()
 
+    // Default effect scale: 2.0x for LIQUID, SPEKTRO, ALCHEMY, BARS; 1.0x for others
+    private fun defaultEffectScale(style: VJStyle) = when (style) {
+        VJStyle.LIQUID, VJStyle.SPEKTRO, VJStyle.ALCHEMY, VJStyle.BARS -> 2.0f
+        else -> 1.0f
+    }
+
+    private val _vjUiScale = MutableStateFlow(
+        VJStyle.entries.associateWith { style ->
+            prefs.getFloat("vj_ui_scale_${style.name}", 1.0f)
+        }
+    )
+    val vjUiScale = _vjUiScale.asStateFlow()
+
+    private val _vjEffectScale = MutableStateFlow(
+        VJStyle.entries.associateWith { style ->
+            prefs.getFloat("vj_effect_scale_${style.name}", defaultEffectScale(style))
+        }
+    )
+    val vjEffectScale = _vjEffectScale.asStateFlow()
+
     private val _fftData = MutableStateFlow(FloatArray(256)) 
     val fftData = _fftData.asStateFlow()
 
@@ -414,6 +434,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun setZoomOnKick(enabled: Boolean) {
         _zoomOnKick.value = enabled
         prefs.edit().putBoolean("zoom_on_kick", enabled).apply()
+    }
+
+    fun setVJUiScale(style: VJStyle, scale: Float) {
+        _vjUiScale.value = _vjUiScale.value + (style to scale)
+        prefs.edit().putFloat("vj_ui_scale_${style.name}", scale).apply()
+    }
+
+    fun setVJEffectScale(style: VJStyle, scale: Float) {
+        _vjEffectScale.value = _vjEffectScale.value + (style to scale)
+        prefs.edit().putFloat("vj_effect_scale_${style.name}", scale).apply()
     }
 
     override fun onCleared() {

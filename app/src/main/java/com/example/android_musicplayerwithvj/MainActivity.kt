@@ -138,6 +138,8 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
     val trackPeakAll by viewModel.trackPeakAll.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
+    val vjUiScale by viewModel.vjUiScale.collectAsState()
+    val vjEffectScale by viewModel.vjEffectScale.collectAsState()
     
     val currentCategory by viewModel.currentCategory.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
@@ -207,6 +209,35 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                             onClick = { viewModel.setZoomOnKick(!zoomOnKick) },
                             trailingIcon = { Checkbox(checked = zoomOnKick, onCheckedChange = null) }
                         )
+
+                        HorizontalDivider()
+
+                        // Per-visualizer: Size & Effect sliders
+                        Text(
+                            text = "${vjStyle.name} パラメータ",
+                            modifier = Modifier.padding(16.dp, 8.dp, 16.dp, 4.dp),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                            val currentUiScale = vjUiScale[vjStyle] ?: 1.0f
+                            val currentEffectScale = vjEffectScale[vjStyle] ?: 1.0f
+
+                            Text("サイズ: ×${ "%.1f".format(currentUiScale) }", style = MaterialTheme.typography.labelSmall)
+                            Slider(
+                                value = currentUiScale,
+                                onValueChange = { viewModel.setVJUiScale(vjStyle, it) },
+                                valueRange = 0.5f..2.0f,
+                                colors = SliderDefaults.colors(activeTrackColor = singleColor, thumbColor = singleColor)
+                            )
+
+                            Text("エフェクト: ×${ "%.1f".format(currentEffectScale) }", style = MaterialTheme.typography.labelSmall)
+                            Slider(
+                                value = currentEffectScale,
+                                onValueChange = { viewModel.setVJEffectScale(vjStyle, it) },
+                                valueRange = 0.5f..4.0f,
+                                colors = SliderDefaults.colors(activeTrackColor = singleColor, thumbColor = singleColor)
+                            )
+                        }
                         
                         HorizontalDivider()
                         
@@ -290,7 +321,9 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                     artworkUri = currentTrack?.artworkUri,
                     zoomOnKickEnabled = zoomOnKick,
                     trackPeakLow = trackPeakLow,
-                    trackPeakAll = trackPeakAll
+                    trackPeakAll = trackPeakAll,
+                    uiScale = vjUiScale[vjStyle] ?: 1.0f,
+                    effectScale = vjEffectScale[vjStyle] ?: 1.0f
                 )
                 
                 // Overlay Controls

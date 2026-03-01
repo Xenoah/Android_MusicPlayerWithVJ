@@ -31,7 +31,9 @@ fun VJCanvas(
     artworkUri: Uri? = null,
     zoomOnKickEnabled: Boolean = true,
     trackPeakLow: Float = 0.15f,
-    trackPeakAll: Float = 0.15f
+    trackPeakAll: Float = 0.15f,
+    uiScale: Float = 1.0f,
+    effectScale: Float = 1.0f
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "VJ")
     val time by infiniteTransition.animateFloat(
@@ -83,8 +85,8 @@ fun VJCanvas(
         val heightPx = constraints.maxHeight.toFloat()
         val maxDimPx = min(widthPx, heightPx)
         
-        // Common base radius (70% scale)
-        val commonBaseR = (maxDimPx / 3.2f) * 0.7f
+        // Common base radius (70% scale), further scaled by uiScale
+        val commonBaseR = (maxDimPx / 3.2f) * 0.7f * uiScale
 
         // 1. First, draw artwork (Bottom layer)
         if ((style == VJStyle.LIQUID || style == VJStyle.FLOWER) && artworkUri != null) {
@@ -122,7 +124,7 @@ fun VJCanvas(
                             val gate = 0.25f
                             val cleanedAmp = if (abs(normalizedAmp) < gate) 0f else (normalizedAmp - sign(normalizedAmp) * gate)
                             
-                            val dynamicRadius = 260f * 0.7f * atan(1.8f * (abs(cleanedAmp) + 0.005f))
+                            val dynamicRadius = 260f * 0.7f * effectScale * atan(1.8f * (abs(cleanedAmp) + 0.005f))
                             radiusData[i] = (commonBaseR * 0.98f) + dynamicRadius
                         }
                         for (i in 0 until points) {
@@ -167,7 +169,7 @@ fun VJCanvas(
                             val rawMag = fftData.getOrElse(idx) { 0f }
                             
                             // Emphasize the spikes
-                            val spike = rawMag * 150f
+                            val spike = rawMag * 150f * effectScale
                             radiusData[i] = commonBaseR * 0.98f + spike
                         }
 
@@ -233,7 +235,7 @@ fun VJCanvas(
                                 val x = (i.toFloat() / 100f) * size.width
                                 val waveVal = sin((i.toDouble() / 10.0) + phase).toFloat()
                                 val audioVal = (waveData.getOrElse((i * (waveData.size / 100)) % waveData.size) { 0 }.toInt()) / 128f
-                                val y = center.y + (waveVal * 100f) + (audioVal * 150f * (index + 1) * 0.5f)
+                                val y = center.y + (waveVal * 100f) + (audioVal * 150f * effectScale * (index + 1) * 0.5f)
                                 if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
                             }
                             drawPath(path, color.copy(alpha = 0.6f), style = Stroke(width = 12f, cap = StrokeCap.Round))
@@ -244,7 +246,7 @@ fun VJCanvas(
                         val colors = if (colorMode == VJColorMode.COLORFUL) listOf(Color.Blue, Color.Magenta, Color.Red, Color.Yellow) else listOf(singleColor, singleColor, singleColor, singleColor)
                         for (i in 0 until 5) {
                             val angle = (time * (i + 1) * 0.2f).toDouble()
-                            val r = (size.minDimension / 3f) * (1f + avgFft * 2f)
+                            val r = (size.minDimension / 3f) * (1f + avgFft * 2f * effectScale)
                             val offset = Offset(center.x + cos(angle).toFloat() * 200f * avgFft, center.y + sin(angle).toFloat() * 200f * avgFft)
                             drawCircle(brush = Brush.radialGradient(colors = listOf(colors[i % colors.size].copy(alpha = 0.7f), Color.Transparent), center = offset, radius = r), radius = r, center = offset)
                         }
@@ -254,7 +256,7 @@ fun VJCanvas(
                         for (i in 0 until 32) {
                             val magnitude = fftData.getOrElse(i) { 0f }
                             val color = if (colorMode == VJColorMode.COLORFUL) Color.hsv((i.toFloat() / 32f) * 360f, 0.7f, 1f) else singleColor
-                            val h = magnitude * size.height * 0.4f
+                            val h = magnitude * size.height * 0.4f * effectScale
                             drawRect(color = color, topLeft = Offset(i * barWidth, center.y - h / 2f), size = androidx.compose.ui.geometry.Size(barWidth - 1f, h))
                         }
                     }
@@ -263,7 +265,7 @@ fun VJCanvas(
                             val path = Path()
                             for (i in 0 until 64) {
                                 val angle = (i.toFloat() / 64f) * 2.0 * PI
-                                val r = (size.minDimension / 5f) + (fftData.getOrElse(i) { 0f } * 180f)
+                                val r = (size.minDimension / 5f) + (fftData.getOrElse(i) { 0f } * 180f * effectScale)
                                 val x = center.x + (r * cos(angle)).toFloat()
                                 val y = center.y + (r * sin(angle)).toFloat()
                                 if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
@@ -275,14 +277,14 @@ fun VJCanvas(
                     VJStyle.SPIKE -> {
                         for (i in 0 until 32) {
                             val angle = (i.toFloat() / 32) * 360f
-                            val len = 60f + fftData.getOrElse(i) { 0f } * 350f
+                            val len = 60f + fftData.getOrElse(i) { 0f } * 350f * effectScale
                             rotate(angle + rotation, center) { drawLine(if (colorMode == VJColorMode.COLORFUL) Color.hsv(angle, 0.8f, 1f) else singleColor, Offset(center.x + 40f, center.y), Offset(center.x + len, center.y), strokeWidth = 4f) }
                         }
                     }
                     VJStyle.BARS -> {
                         val bw = size.width / 32f
                         for (i in 0 until 32) {
-                            val bh = fftData.getOrElse(i) { 0f } * size.height * 0.5f
+                            val bh = fftData.getOrElse(i) { 0f } * size.height * 0.5f * effectScale
                             drawRect(if (colorMode == VJColorMode.COLORFUL) Color.hsv((i.toFloat() / 32) * 360f, 0.6f, 1f).copy(alpha = 0.7f) else singleColor.copy(alpha = 0.7f), Offset(i * bw, size.height - bh), androidx.compose.ui.geometry.Size(bw - 2f, bh))
                         }
                     }
