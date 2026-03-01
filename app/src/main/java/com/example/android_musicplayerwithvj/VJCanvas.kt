@@ -40,7 +40,8 @@ fun VJCanvas(
     trackPeakAll: Float = 0.15f,
     uiScale: Float = 1.0f,
     effectScale: Float = 1.0f,
-    liquidFlipped: Boolean = false
+    liquidFlipped: Boolean = false,
+    fireworkSensitivity: Float = 1.3f
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "VJ")
     val time by infiniteTransition.animateFloat(
@@ -95,40 +96,85 @@ fun VJCanvas(
         for (i in 1 until fftData.size) { ws += i * fftData[i]; tw += fftData[i] }
         if (tw > 0f) (ws / tw / fftData.size).coerceIn(0f, 1f) else 0f
     } else 0f
-    // bass=red(0), mid=yellow(60), treble=purple(270)
     val timbreHue = spectralCentroid * 270f
 
-    // ---- High-frequency transient detection for firework particles ----
-    val hiStart = (fftData.size * 0.5f).toInt().coerceAtLeast(1)
-    val hiEnd   = (fftData.size * 0.75f).toInt().coerceAtMost(fftData.size)
-    val hiEnergy = if (hiEnd > hiStart) {
-        (hiStart until hiEnd).sumOf { fftData.getOrElse(it) { 0f }.toDouble() }.toFloat() / (hiEnd - hiStart)
-    } else 0f
-
-    var hiBaseline by remember { mutableFloatStateOf(0f) }
-    hiBaseline = hiBaseline * 0.88f + hiEnergy * 0.12f
-    val isTransient = hiEnergy > hiBaseline * 2.2f && hiEnergy > 0.015f
-
-    var lastTransientMs by remember { mutableLongStateOf(0L) }
-    val gatedTransient = isTransient && (currentTimeMs - lastTransientMs) > 80L
-    if (gatedTransient) lastTransientMs = currentTimeMs
-
-    // ---- Particle state (AURA_HEAT fireworks) ----
+    // ---- Particle state + coroutine-based transient detection + spawning ----
+    var particleCx by remember { mutableFloatStateOf(0f) }
+    var particleCy by remember { mutableFloatStateOf(0f) }
     var auraParticles by remember { mutableStateOf(listOf<AuraParticle>()) }
 
+    // Always-current refs so the LaunchedEffect reads latest values without restarting
+    val fftRef          = rememberUpdatedState(fftData)
+    val playingRef      = rememberUpdatedState(isPlaying)
+    val styleRef        = rememberUpdatedState(style)
+    val effectRef       = rememberUpdatedState(effectScale)
+    val sensitivityRef  = rememberUpdatedState(fireworkSensitivity)
+    val timbreRef       = rememberUpdatedState(timbreHue)
+    val cxRef           = rememberUpdatedState(particleCx)
+    val cyRef           = rememberUpdatedState(particleCy)
+
     LaunchedEffect(Unit) {
+        val rand = kotlin.random.Random.Default
+        var hiBaselineLoc = 0f
+        var lastTransientMsLoc = 0L
+
         while (true) {
             kotlinx.coroutines.delay(16)
+
+            // 1. Physics update (every frame, all styles)
             auraParticles = auraParticles.mapNotNull { p ->
                 if (p.life <= 0.02f) null
                 else p.copy(
                     x = p.x + p.vx,
                     y = p.y + p.vy,
-                    vy = p.vy + 0.25f,
+                    vy = p.vy + 0.28f,
                     vx = p.vx * 0.97f,
                     life = p.life - 0.018f
                 )
             }
+
+            if (!playingRef.value || styleRef.value != VJStyle.AURA_HEAT) continue
+
+            // 2. Transient detection
+            val fft = fftRef.value
+            if (fft.size < 4) continue
+            val hiS = (fft.size * 0.15f).toInt().coerceAtLeast(1)
+            val hiE = (fft.size * 0.85f).toInt().coerceAtMost(fft.size)
+            val hiEn = if (hiE > hiS) {
+                var sum = 0f
+                for (i in hiS until hiE) sum += fft.getOrElse(i) { 0f }
+                sum / (hiE - hiS)
+            } else 0f
+
+            hiBaselineLoc = hiBaselineLoc * 0.92f + hiEn * 0.08f
+
+            val threshold   = sensitivityRef.value
+            val nowMs       = System.currentTimeMillis()
+            val isT         = hiEn > hiBaselineLoc * threshold && hiEn > 0.005f
+            val gated       = isT && (nowMs - lastTransientMsLoc) > 100L
+
+            if (!gated) continue
+            lastTransientMsLoc = nowMs
+
+            // 3. Spawn burst
+            val cx  = cxRef.value
+            val cy  = cyRef.value
+            if (cx <= 0f && cy <= 0f) continue
+            val eff = effectRef.value.coerceIn(0.5f, 3f)
+            val tHue = timbreRef.value
+            val burst = (0 until 28).map { i ->
+                val angle = (i.toFloat() / 28f) * 2f * PI.toFloat() + rand.nextFloat() * 0.5f
+                val speed = 6f + rand.nextFloat() * 16f * eff
+                AuraParticle(
+                    x = cx, y = cy,
+                    vx = cos(angle) * speed,
+                    vy = sin(angle) * speed - 3f,
+                    life = 0.75f + rand.nextFloat() * 0.25f,
+                    hue  = (tHue + rand.nextFloat() * 60f - 30f).mod(360f),
+                    sz   = 5f + rand.nextFloat() * 9f
+                )
+            }
+            auraParticles = (auraParticles + burst).takeLast(300)
         }
     }
 
@@ -140,25 +186,9 @@ fun VJCanvas(
         val maxDimPx = min(widthPx, heightPx)
         val cx = widthPx / 2f
         val cy = heightPx / 2f
-
-        // Spawn firework burst when transient detected (AURA_HEAT only)
-        if (gatedTransient && style == VJStyle.AURA_HEAT && isPlaying) {
-            val rand = kotlin.random.Random.Default
-            val burstCount = 24
-            val newParticles = (0 until burstCount).map { i ->
-                val angle = (i.toFloat() / burstCount) * 2f * PI.toFloat() + rand.nextFloat() * 0.4f
-                val speed = 8f + rand.nextFloat() * 14f * effectScale.coerceAtMost(3f)
-                AuraParticle(
-                    x = cx, y = cy,
-                    vx = cos(angle) * speed,
-                    vy = sin(angle) * speed - 2f,
-                    life = 0.7f + rand.nextFloat() * 0.3f,
-                    hue = (timbreHue + rand.nextFloat() * 40f - 20f).mod(360f),
-                    sz = 4f + rand.nextFloat() * 8f
-                )
-            }
-            auraParticles = (auraParticles + newParticles).takeLast(300)
-        }
+        // Update center for the particle coroutine
+        particleCx = cx
+        particleCy = cy
 
         // Common base radius (70% scale), further scaled by uiScale
         val commonBaseR = (maxDimPx / 3.2f) * 0.7f * uiScale

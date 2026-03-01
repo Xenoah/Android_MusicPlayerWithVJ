@@ -152,6 +152,7 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
     val virtualizerStrength by viewModel.virtualizerStrength.collectAsState()
     val reverbPreset by viewModel.reverbPreset.collectAsState()
     val liquidFlipped by viewModel.liquidFlipped.collectAsState()
+    val fireworkSensitivity by viewModel.fireworkSensitivity.collectAsState()
     
     val currentCategory by viewModel.currentCategory.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
@@ -284,6 +285,16 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                                     trailingIcon = { Checkbox(checked = liquidFlipped, onCheckedChange = null) }
                                 )
                             }
+                            // AURA_HEAT-only: firework sensitivity slider
+                            if (vjStyle == VJStyle.AURA_HEAT) {
+                                Text("花火感度: ×${ "%.2f".format(fireworkSensitivity) }", style = MaterialTheme.typography.labelSmall)
+                                Slider(
+                                    value = fireworkSensitivity,
+                                    onValueChange = { viewModel.setFireworkSensitivity(it) },
+                                    valueRange = 1.0f..3.0f,
+                                    colors = SliderDefaults.colors(activeTrackColor = singleColor, thumbColor = singleColor)
+                                )
+                            }
                         }
                         
                         HorizontalDivider()
@@ -371,7 +382,8 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                     trackPeakAll = trackPeakAll,
                     uiScale = vjUiScale[vjStyle] ?: 1.0f,
                     effectScale = vjEffectScale[vjStyle] ?: 1.0f,
-                    liquidFlipped = liquidFlipped
+                    liquidFlipped = liquidFlipped,
+                    fireworkSensitivity = fireworkSensitivity
                 )
                 
                 // Overlay Controls

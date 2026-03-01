@@ -99,6 +99,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _liquidFlipped = MutableStateFlow(prefs.getBoolean("liquid_flipped", false))
     val liquidFlipped = _liquidFlipped.asStateFlow()
 
+    private val _fireworkSensitivity = MutableStateFlow(prefs.getFloat("firework_sensitivity", 1.3f))
+    val fireworkSensitivity = _fireworkSensitivity.asStateFlow()
+
     // Default effect scale: 2.0x for LIQUID, SPEKTRO, ALCHEMY, BARS; 1.0x for others
     private fun defaultEffectScale(style: VJStyle) = when (style) {
         VJStyle.LIQUID, VJStyle.SPEKTRO, VJStyle.ALCHEMY, VJStyle.BARS -> 2.0f
@@ -551,6 +554,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun setLiquidFlipped(flipped: Boolean) {
         _liquidFlipped.value = flipped
         prefs.edit().putBoolean("liquid_flipped", flipped).apply()
+    }
+
+    fun setFireworkSensitivity(value: Float) {
+        _fireworkSensitivity.value = value
+        prefs.edit().putFloat("firework_sensitivity", value).apply()
     }
 
     // ---- Audio Effect Setters ----
