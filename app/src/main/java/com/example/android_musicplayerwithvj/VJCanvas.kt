@@ -111,47 +111,7 @@ fun VJCanvas(
             scale(scale = currentScale, pivot = center) {
                 when (style) {
                     VJStyle.FLOWER -> {
-                        // FLOWER: Contracts inward with volume
-                        val path = Path()
-                        val points = 128
-                        val radiusData = FloatArray(points)
-                        for (i in 0 until points) {
-                            val waveIdx = (i * (waveData.size / points)) % (waveData.size.takeIf { it > 0 } ?: 1)
-                            val rawAmp = (waveData.getOrElse(waveIdx) { 0 }.toFloat() / 128f)
-                            val normalizedAmp = (rawAmp / max(0.15f, trackPeakAll)).coerceIn(-1f, 1f)
-                            
-                            val contract = 112f * 0.7f * atan(2.0f * (abs(normalizedAmp) + 0.002f))
-                            radiusData[i] = (commonBaseR + 80f * 0.7f) - contract
-                        }
-                        for (i in 0 until points) {
-                            val angle1 = (i.toFloat() / points) * 2.0 * PI
-                            val angle2 = ((i + 1).toFloat() / points) * 2.0 * PI
-                            val midAngle = (angle1 + angle2) / 2.0
-                            val r1 = radiusData[i]
-                            val r2 = radiusData[(i + 1) % points]
-                            
-                            val x1 = center.x + r1 * cos(angle1).toFloat()
-                            val y1 = center.y + r1 * sin(angle1).toFloat()
-                            val xMid = center.x + ((r1 + r2) / 2.0f) * cos(midAngle).toFloat()
-                            val yMid = center.y + ((r1 + r2) / 2.0f) * sin(midAngle).toFloat()
-                            
-                            if (i == 0) path.moveTo(x1, y1)
-                            path.quadraticBezierTo(x1, y1, xMid, yMid)
-                        }
-                        path.close()
-                        
-                        // Use EvenOdd fill to keep center clear
-                        val finalPath = Path()
-                        finalPath.fillType = PathFillType.EvenOdd
-                        finalPath.addPath(path)
-                        val circleRect = Rect(center.x - commonBaseR, center.y - commonBaseR, center.x + commonBaseR, center.y + commonBaseR)
-                        finalPath.addOval(circleRect)
-                        
-                        drawPath(finalPath, if (colorMode == VJColorMode.COLORFUL) Color.Magenta else singleColor)
-                        drawCircle(if (colorMode == VJColorMode.COLORFUL) Color.Magenta else singleColor, radius = commonBaseR, style = Stroke(width = 2f))
-                    }
-                    VJStyle.LIQUID -> {
-                        // LIQUID: Expands outward with volume
+                        // FLOWER: Expands outward with volume (same as LIQUID)
                         val path = Path()
                         val points = 128
                         val radiusData = FloatArray(points)
@@ -189,8 +149,80 @@ fun VJCanvas(
                         val circleRect = Rect(center.x - commonBaseR * 0.98f, center.y - commonBaseR * 0.98f, center.x + commonBaseR * 0.98f, center.y + commonBaseR * 0.98f)
                         finalPath.addOval(circleRect)
                         
-                        drawPath(finalPath, if (colorMode == VJColorMode.COLORFUL) Color.Cyan else singleColor)
-                        drawCircle(if (colorMode == VJColorMode.COLORFUL) Color.Cyan else singleColor, radius = commonBaseR, style = Stroke(width = 2f))
+                        drawPath(finalPath, if (colorMode == VJColorMode.COLORFUL) Color.Magenta else singleColor)
+                        drawCircle(if (colorMode == VJColorMode.COLORFUL) Color.Magenta else singleColor, radius = commonBaseR, style = Stroke(width = 2f))
+                    }
+                    VJStyle.LIQUID -> {
+                        // LIQUID: Trap Nation / Avee Player Style (Sharp, Symmetric, FFT-based)
+                        val pointsCount = 64 // Use 64 points per half-circle
+                        val radiusData = FloatArray(pointsCount)
+                        
+                        // Process FFT data to get sharp spikes
+                        for (i in 0 until pointsCount) {
+                            // Map FFT indices to emphasize bass (lower frequencies)
+                            // We use a non-linear mapping to grab more bass and fewer highs
+                            val fftIdx = (i.toFloat() / pointsCount).pow(1.5f) * (fftData.size / 2)
+                            val idx = fftIdx.toInt().coerceIn(0, fftData.size - 1)
+                            
+                            val rawMag = fftData.getOrElse(idx) { 0f }
+                            
+                            // Emphasize the spikes
+                            val spike = rawMag * 150f
+                            radiusData[i] = commonBaseR * 0.98f + spike
+                        }
+
+                        // We create multiple layers for glow effect
+                        val layers = 3
+                        val baseColor = if (colorMode == VJColorMode.COLORFUL) Color.Cyan else singleColor
+                        
+                        for (layer in 0 until layers) {
+                            val path = Path()
+                            val alpha = 1f - (layer * 0.3f) // Dimmer behind
+                            val scaleLayer = 1f + (layer * 0.05f) // Slightly larger behind
+                            val blurWidth = if (layer == 0) 2f else 6f * layer // Sharper in front, blurred behind
+                            
+                            // Draw full circle symmetrically
+                            // Go from 6 o'clock (PI/2) to 12 o'clock (-PI/2) for left side
+                            // Then from 12 o'clock (-PI/2) back to 6 o'clock (PI/2) for right side
+                            for (side in 0..1) {
+                                for (i in 0 until pointsCount) {
+                                    // Smooth out the bottom and top connections
+                                    val smoothFactor = if (i < 3) (i / 3f) else if (i > pointsCount - 4) ((pointsCount - 1 - i) / 3f) else 1f
+                                    
+                                    val r = commonBaseR * 0.98f + (radiusData[i] - commonBaseR * 0.98f) * smoothFactor * scaleLayer
+                                    
+                                    val angleOffset = PI / 2.0 // Start at bottom
+                                    // Map i to angle: 0 to PI
+                                    val progressAngle = (i.toFloat() / (pointsCount - 1)) * PI
+                                    val angle = if (side == 0) angleOffset + progressAngle else angleOffset - progressAngle
+                                    
+                                    val x = center.x + r * cos(angle).toFloat()
+                                    val y = center.y + r * sin(angle).toFloat()
+                                    
+                                    if (side == 0 && i == 0) {
+                                        path.moveTo(x, y)
+                                    } else {
+                                        path.lineTo(x, y) // Use lineTo for sharp spikes
+                                    }
+                                }
+                            }
+                            path.close()
+                            
+                            // Inner cut-out to keep the center clean
+                            val finalPath = Path()
+                            finalPath.fillType = PathFillType.EvenOdd
+                            finalPath.addPath(path)
+                            val innerR = commonBaseR * 0.98f - (if (layer == 0) 0f else 2f)
+                            val circleRect = Rect(center.x - innerR, center.y - innerR, center.x + innerR, center.y + innerR)
+                            finalPath.addOval(circleRect)
+                            
+                            drawPath(finalPath, baseColor.copy(alpha = alpha))
+                            
+                            if (layer == 0) {
+                                // Draw strong center border only for the top layer
+                                drawCircle(baseColor, radius = commonBaseR * 0.98f, style = Stroke(width = blurWidth))
+                            }
+                        }
                     }
                     VJStyle.NEON_WAVES -> {
                         val colors = if (colorMode == VJColorMode.COLORFUL) listOf(Color.Cyan, Color.Green, Color.Magenta) else listOf(singleColor, singleColor, singleColor)
