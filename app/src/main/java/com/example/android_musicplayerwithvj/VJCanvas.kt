@@ -33,7 +33,8 @@ fun VJCanvas(
     trackPeakLow: Float = 0.15f,
     trackPeakAll: Float = 0.15f,
     uiScale: Float = 1.0f,
-    effectScale: Float = 1.0f
+    effectScale: Float = 1.0f,
+    liquidFlipped: Boolean = false
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "VJ")
     val time by infiniteTransition.animateFloat(
@@ -49,35 +50,38 @@ fun VJCanvas(
         label = "Rotation"
     )
 
-    // --- Dynamic Beat Detection ---
-    val rawKick = if (fftData.size > 1) fftData[1] else 0f
-    val normalizedKick = (rawKick / max(0.01f, trackPeakLow)).coerceIn(0f, 1f)
-    
-    var lastBeatTime by remember { mutableLongStateOf(0L) }
-    var beatConfidence by remember { mutableFloatStateOf(0f) }
-    val currentTime = System.currentTimeMillis()
-    
-    val isPeak = normalizedKick > 0.85f && normalizedKick > (beatConfidence * 0.7f)
-    
-    LaunchedEffect(isPeak) {
-        if (isPeak) {
-            val delta = currentTime - lastBeatTime
-            beatConfidence = if (delta in 300..800) min(1f, beatConfidence + 0.25f) else max(0f, beatConfidence - 0.15f)
-            lastBeatTime = currentTime
-        }
-    }
+    // --- Robust Beat / Kick Detection ---
+    // Use the first few FFT bins as bass energy (kick lives around 40-120Hz)
+    val bassEnergy = if (fftData.size > 3) (fftData[1] + fftData[2] + fftData[3]) / 3f else 0f
 
-    // Zoom value: Sharp and small, now assigned to Flower
-    val zoomValue = if (style == VJStyle.FLOWER && zoomOnKickEnabled) {
-        val intensity = if (isPeak) 0.06f * (0.4f + beatConfidence * 0.6f) else 0f
-        1f + intensity.coerceAtMost(0.08f)
-    } else 1f
+    // Low-pass filter: slowly track the baseline energy level
+    var energyBaseline by remember { mutableFloatStateOf(0f) }
+    val baselineAlpha = 0.15f  // how quickly the baseline adapts (lower = slower)
+    energyBaseline = energyBaseline * (1f - baselineAlpha) + bassEnergy * baselineAlpha
+
+    // A kick is detected when current energy spikes clearly above the running baseline
+    val kickThreshold = 1.6f   // must be this many times above baseline
+    val minEnergy    = 0.04f   // ignore silence / near-silence
+    val isKick = bassEnergy > energyBaseline * kickThreshold && bassEnergy > minEnergy
+
+    // Gate the kick: require a minimum interval between beats (prevent re-triggering)
+    var lastKickTime by remember { mutableLongStateOf(0L) }
+    val currentTimeMs = System.currentTimeMillis()
+    val gatedKick = isKick && (currentTimeMs - lastKickTime) > 180L  // min 180ms between kicks
+
+    // Update lastKickTime when a gated kick fires
+    if (gatedKick) lastKickTime = currentTimeMs
+
+    // Zoom target: snap to zoom-in on kick, otherwise idle at 1f
+    // animateFloatAsState with a spring handles the natural decay back to 1f
+    val zoomTarget = if (style == VJStyle.FLOWER && zoomOnKickEnabled && gatedKick) 1.07f else 1f
 
     val animatedZoom by animateFloatAsState(
-        targetValue = zoomValue,
-        animationSpec = spring(dampingRatio = 0.25f, stiffness = 3000f),
+        targetValue = zoomTarget,
+        animationSpec = spring(dampingRatio = 0.35f, stiffness = 2000f),
         label = "FlowerZoom"
     )
+
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val density = LocalDensity.current
@@ -193,7 +197,7 @@ fun VJCanvas(
                                     
                                     val r = commonBaseR * 0.98f + (radiusData[i] - commonBaseR * 0.98f) * smoothFactor * scaleLayer
                                     
-                                    val angleOffset = PI / 2.0 // Start at bottom
+                                    val angleOffset = if (liquidFlipped) -PI / 2.0 else PI / 2.0 // Top or Bottom
                                     // Map i to angle: 0 to PI
                                     val progressAngle = (i.toFloat() / (pointsCount - 1)) * PI
                                     val angle = if (side == 0) angleOffset + progressAngle else angleOffset - progressAngle

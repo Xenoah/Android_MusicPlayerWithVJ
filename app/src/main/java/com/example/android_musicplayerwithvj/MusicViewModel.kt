@@ -96,6 +96,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _zoomOnKick = MutableStateFlow(prefs.getBoolean("zoom_on_kick", true))
     val zoomOnKick = _zoomOnKick.asStateFlow()
 
+    private val _liquidFlipped = MutableStateFlow(prefs.getBoolean("liquid_flipped", false))
+    val liquidFlipped = _liquidFlipped.asStateFlow()
+
     // Default effect scale: 2.0x for LIQUID, SPEKTRO, ALCHEMY, BARS; 1.0x for others
     private fun defaultEffectScale(style: VJStyle) = when (style) {
         VJStyle.LIQUID, VJStyle.SPEKTRO, VJStyle.ALCHEMY, VJStyle.BARS -> 2.0f
@@ -543,6 +546,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun setVJEffectScale(style: VJStyle, scale: Float) {
         _vjEffectScale.value = _vjEffectScale.value + (style to scale)
         prefs.edit().putFloat("vj_effect_scale_${style.name}", scale).apply()
+    }
+
+    fun setLiquidFlipped(flipped: Boolean) {
+        _liquidFlipped.value = flipped
+        prefs.edit().putBoolean("liquid_flipped", flipped).apply()
     }
 
     // ---- Audio Effect Setters ----

@@ -151,6 +151,7 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
     val virtualizerEnabled by viewModel.virtualizerEnabled.collectAsState()
     val virtualizerStrength by viewModel.virtualizerStrength.collectAsState()
     val reverbPreset by viewModel.reverbPreset.collectAsState()
+    val liquidFlipped by viewModel.liquidFlipped.collectAsState()
     
     val currentCategory by viewModel.currentCategory.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
@@ -274,6 +275,15 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                                 valueRange = 0.1f..10.0f,
                                 colors = SliderDefaults.colors(activeTrackColor = singleColor, thumbColor = singleColor)
                             )
+
+                            // LIQUID-only: flip toggle
+                            if (vjStyle == VJStyle.LIQUID) {
+                                DropdownMenuItem(
+                                    text = { Text("上下反転 (Flip)") },
+                                    onClick = { viewModel.setLiquidFlipped(!liquidFlipped) },
+                                    trailingIcon = { Checkbox(checked = liquidFlipped, onCheckedChange = null) }
+                                )
+                            }
                         }
                         
                         HorizontalDivider()
@@ -360,7 +370,8 @@ fun MusicPlayerScreen(viewModel: MusicViewModel) {
                     trackPeakLow = trackPeakLow,
                     trackPeakAll = trackPeakAll,
                     uiScale = vjUiScale[vjStyle] ?: 1.0f,
-                    effectScale = vjEffectScale[vjStyle] ?: 1.0f
+                    effectScale = vjEffectScale[vjStyle] ?: 1.0f,
+                    liquidFlipped = liquidFlipped
                 )
                 
                 // Overlay Controls
